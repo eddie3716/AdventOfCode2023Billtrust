@@ -19,7 +19,7 @@ type Range struct {
 	End   int
 }
 
-func (std []SourceToDestination) GetDestinationRange(source SourceToDestination) []Range {
+func (std []SourceToDestination) GetDestinationRange(source Range) []Range []Range {
 	ranges := []Range{}
 	if source.Source >= std.Source && source.Source <= std.Source+std.Range-1 {
 		offset := source.Source - std.Source
