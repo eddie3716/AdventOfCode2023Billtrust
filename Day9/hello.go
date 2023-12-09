@@ -15,6 +15,21 @@ type Node struct {
 	Ancestor *Node
 }
 
+func (node *Node) Reverse() *Node {
+	// Reverse the linked list
+	var prev *Node = nil
+	current := node
+	for current != nil {
+		next := current.Next
+		current.Next = prev
+		current.Prev = next
+		prev = current
+		current = next
+	}
+	node = prev
+	return node
+}
+
 func (node *Node) PrintGraph(depth int) {
 	for i := 0; i < depth; i++ {
 		fmt.Print("   ")
@@ -149,5 +164,10 @@ func main() {
 	currentGeneration := parseFile("input.txt")
 
 	//part1(currentGeneration)
-	part2(currentGeneration)
+	//part2(currentGeneration)
+	for index, node := range currentGeneration {
+		newNode := node.Reverse()
+		currentGeneration[index] = newNode
+	}
+	part1(currentGeneration)
 }
