@@ -6,4 +6,5 @@ use (
 	./Day6
 	./Day7_1
 	./Day8
+	./Day9
 )
