@@ -9,32 +9,79 @@ import (
 )
 
 func main() {
-	gridPatterns := parseFile("testinput.txt")
+	data := parseFile("testinput.txt")
 
-	part1(gridPatterns)
+	part1(data)
 
-	part2(gridPatterns)
+	//part2(gridPatterns)
+}
+
+func WillFit(t string, number rune, index int) (bool, int) {
+	skew := int(number) - 1
+
+	if skew < 0 {
+		fmt.Println(skew, " ", number, " ", index, " ", t)
+		panic("will not fit")
+	}
+
+	endIndex := index + skew
+
+	if endIndex >= len(t) {
+		fmt.Println(skew, " ", number, " ", index, " ", t)
+		panic("How does this even happen")
+	}
+
+	nextIndex := index + skew + 1
+	testFirstSymbol := t[index]
+	testEndSymbol := t[endIndex]
+	switch testFirstSymbol {
+	case '?':
+		if testEndSymbol == '?' || (testEndSymbol == '#' && nextIndex < len(t) && t[nextIndex] != '#') {
+			return true, nextIndex
+		} else {
+			return false, index + 1
+		}
+	case '#':
+		if (testEndSymbol == '?') || (testEndSymbol == '#' && nextIndex < len(t) && t[nextIndex] != '#') {
+			return true, nextIndex
+		} else {
+			return false, index + 1
+		}
+	default:
+		fmt.Println(skew, " ", number, " ", index, " ", testFirstSymbol, " ", testEndSymbol, t)
+		panic("Unknown symbol")
+	}
+	fmt.Println(skew, " ", number, " ", index, " ", testFirstSymbol, " ", testEndSymbol, t)
+	panic("Should not be here")
 }
 
 type Pattern []int
-type Patterns []Pattern
 
-type Templates []string
-type Grid []Templates
-
-type GridPatterns struct {
-	grid    Grid
-	pattern Patterns
+type Set struct {
+	Pattern  []int
+	Template string
 }
 
-func (gp GridPatterns) PrintGridPatterns() {
-	for index, row := range gp.grid {
-		fmt.Print(row)
-		fmt.Println(" ", gp.pattern[index])
+func (s Set) FindCombinations(start int) (int, bool) {
+	found := true
+
+	if found {
+
+		newSet := Set{s.Pattern[start+1:], s.Template[start+1:]}
+		return newSet.FindCombinations(start + 1)
 	}
 }
 
-func parseFile(fileName string) GridPatterns {
+type Sets []Set
+
+func (ss Sets) PrintGridPatterns() {
+	for _, s := range ss {
+		fmt.Print(s.Template)
+		fmt.Println(" ", s.Pattern)
+	}
+}
+
+func parseFile(fileName string) Sets {
 	file, err := os.Open(fileName)
 
 	if err != nil {
@@ -44,60 +91,56 @@ func parseFile(fileName string) GridPatterns {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-
-	grid := Grid{}
-	patterns := Patterns{}
+	sets := Sets{}
 	for scanner.Scan() {
 		line := scanner.Text()
 		tokens := strings.Split(line, " ")
-		templates := Templates{}
-		for _, token := range strings.Split(tokens[0], ".") {
-			if token != "" {
-				templates = append(templates, token)
-			}
-		}
-		grid = append(grid, templates)
+
 		pattern := Pattern{}
 		for _, token := range strings.Split(tokens[1], ",") {
 			number, _ := strconv.Atoi(token)
 			pattern = append(pattern, number)
 		}
-		patterns = append(patterns, pattern)
+		set := Set{pattern, Template(tokens[0])}
+		sets = append(sets, set)
 	}
 
-	gridPatterns := GridPatterns{grid, patterns}
-	gridPatterns.PrintGridPatterns()
-	return gridPatterns
+	sets.PrintGridPatterns()
+	return sets
 }
 
-func part1(gridPatterns GridPatterns) {
-	matches := 0
-	//combinations := map[int]string{}
+func part1(sets Sets) {
 
-	for index, templates := range gridPatterns.grid {
-		spacesRequired := len(gridPatterns.pattern[index]) - 1
-		spacesAvailable := len(templates) - 1
-		for _, template := range templates {
-			spacesAvailable += len(template)
-		}
-		for _, template := range templates {
-			for _, pattern := range gridPatterns.pattern[index] {
-				if template == string(pattern) {
-					matches++
-				}
+	for index, pattern := range sets.Patterns {
+		templates := sets.Grid[index]
+		iTemplates := 0
+		iTemplate := 0
+		iNumber := 0
+		willFit := true
+		currentTemplate := templates[iTemplates]
+		for iNumber = 0; iNumber < len(pattern); iNumber++ {
+			number := pattern[iNumber]
+			if iTemplate >= len(currentTemplate) {
+				iTemplates++
+				currentTemplate = templates[iTemplates]
+				iTemplate = 0
+			}
+			fmt.Println(number, " ", currentTemplate, " ", iTemplate)
+			tempITemplate := iTemplate
+			willFit, iTemplate = currentTemplate.WillFit(rune(number), iTemplate)
+			if willFit {
+				[]rune(currentTemplate)[tempITemplate] = '#'
+			}
+			if !willFit {
+				fmt.Println("No match")
+				break
 			}
 		}
+
+		fmt.Println(gridPatterns)
 	}
-
-	// for _, pattern := range gridPatterns.pattern {
-	// 	for _, template := range gridPatterns.grid {
-
-	// 	}
-	// }
-
-	fmt.Println(matches)
-
 }
-func part2(gridPatterns GridPatterns) {
 
+func part2(gridPatterns Sets) {
+	fmt.Println("Part 2")
 }
