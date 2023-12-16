@@ -40,6 +40,7 @@ func (set Set) FindCombos() int {
 }
 
 func (set Set) FindCombinations(iCurrentSpring, iCurrentBrokenBlock int, currentLengthOfBrokenBlock int, cache map[string]int) int {
+	//this will be a unique key across all combinations
 	key := fmt.Sprintf("%d_%d_%d", iCurrentBrokenBlock, iCurrentSpring, currentLengthOfBrokenBlock)
 
 	//fmt.Println("Key", key)
