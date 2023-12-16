@@ -16,24 +16,40 @@ func main() {
 	part2(sets)
 }
 
-type Pattern []int
-type Template string
-
 type Set struct {
-	Pattern  []int
-	Template Template
+	BrokenSpringBlocks []int
+	SpringArray        string
 }
 
 func (s Set) Fold() Set {
-	newTemplate := s.Template + "?" + s.Template + "?" + s.Template + "?" + s.Template + "?" + s.Template
-	newPattern := []int{}
-	newPattern = append(newPattern, s.Pattern...)
-	newPattern = append(newPattern, s.Pattern...)
-	newPattern = append(newPattern, s.Pattern...)
-	newPattern = append(newPattern, s.Pattern...)
-	newPattern = append(newPattern, s.Pattern...)
-	newSet := Set{newPattern, Template(newTemplate)}
+	newSpringArray := s.SpringArray + "?" + s.SpringArray + "?" + s.SpringArray + "?" + s.SpringArray + "?" + s.SpringArray
+	newBrokenSpringBlocks := []int{}
+	newBrokenSpringBlocks = append(newBrokenSpringBlocks, s.BrokenSpringBlocks...)
+	newBrokenSpringBlocks = append(newBrokenSpringBlocks, s.BrokenSpringBlocks...)
+	newBrokenSpringBlocks = append(newBrokenSpringBlocks, s.BrokenSpringBlocks...)
+	newBrokenSpringBlocks = append(newBrokenSpringBlocks, s.BrokenSpringBlocks...)
+	newBrokenSpringBlocks = append(newBrokenSpringBlocks, s.BrokenSpringBlocks...)
+	newSet := Set{newBrokenSpringBlocks, newSpringArray}
 	return newSet
+}
+
+func (set Set) CheckForTermination(iCurrentSpring, iCurrentBrokenBlock int, currentLengthOfBrokenBlock int) (bool, int) {
+	if iCurrentSpring == len(set.SpringArray) {
+		// we've reached the end of our spring array
+
+		if iCurrentBrokenBlock == len(set.BrokenSpringBlocks) && currentLengthOfBrokenBlock == 0 {
+			// we've check all broken spring blocks and don't have any in progress that we're checking, so all other blocks were matched
+			return true, 1
+		} else if iCurrentBrokenBlock == len(set.BrokenSpringBlocks)-1 && set.BrokenSpringBlocks[iCurrentBrokenBlock] == currentLengthOfBrokenBlock {
+			// we've been checking the last broken spring block and determined that it's a match
+			return true, 1
+		} else {
+			// we've reached the end of our spring array but we still have broken spring blocks to check, so we weren't able to match all blocks
+			return true, 0
+		}
+	}
+
+	return false, 0
 }
 
 func (set Set) FindCombos() int {
@@ -42,8 +58,8 @@ func (set Set) FindCombos() int {
 	return result
 }
 
-func (set Set) FindCombinations(iTemplate, iPattern int, lengthOfPattern int, cache map[string]int) int {
-	key := fmt.Sprintf("%d_%d_%d", iPattern, iTemplate, lengthOfPattern)
+func (set Set) FindCombinations(iCurrentSpring, iCurrentBrokenBlock int, currentLengthOfBrokenBlock int, cache map[string]int) int {
+	key := fmt.Sprintf("%d_%d_%d", iCurrentBrokenBlock, iCurrentSpring, currentLengthOfBrokenBlock)
 
 	//fmt.Println("Key", key)
 
@@ -52,29 +68,40 @@ func (set Set) FindCombinations(iTemplate, iPattern int, lengthOfPattern int, ca
 		return val
 	}
 
-	if iTemplate == len(set.Template) {
-		if iPattern == len(set.Pattern) && lengthOfPattern == 0 {
+	if iCurrentSpring == len(set.SpringArray) {
+		// we've reached the end of our spring array
+
+		if iCurrentBrokenBlock == len(set.BrokenSpringBlocks) && currentLengthOfBrokenBlock == 0 {
+			// we've check all broken spring blocks and don't have any in progress that we're checking, so all other blocks were matched
 			return 1
-		} else if iPattern == len(set.Pattern)-1 && set.Pattern[iPattern] == lengthOfPattern {
+		} else if iCurrentBrokenBlock == len(set.BrokenSpringBlocks)-1 && set.BrokenSpringBlocks[iCurrentBrokenBlock] == currentLengthOfBrokenBlock {
+			// we've been checking the last broken spring block and determined that it's a match
 			return 1
 		} else {
+			// we've reached the end of our spring array but we still have broken spring blocks to check, so we weren't able to match all blocks
 			return 0
 		}
 	}
 
 	combos := 0
-	currentChar := set.Template[iTemplate]
+	currentSpring := set.SpringArray[iCurrentSpring]
 
-	if currentChar == '?' || currentChar == '.' {
-		if lengthOfPattern == 0 {
-			combos += set.FindCombinations(iTemplate+1, iPattern, 0, cache)
-		} else if lengthOfPattern > 0 && iPattern < len(set.Pattern) && set.Pattern[iPattern] == lengthOfPattern {
-			combos += set.FindCombinations(iTemplate+1, iPattern+1, 0, cache)
-		}
+	//possible match with our current broken block...increment and check next spring array index
+	//keeps down this path until we either get to the end of the spring array or terminate at a '.'
+	if currentSpring == '?' || currentSpring == '#' {
+		combos += set.FindCombinations(iCurrentSpring+1, iCurrentBrokenBlock, currentLengthOfBrokenBlock+1, cache)
 	}
 
-	if currentChar == '?' || currentChar == '#' {
-		combos += set.FindCombinations(iTemplate+1, iPattern, lengthOfPattern+1, cache)
+	//need to check other branches...we don't branch on a '#' because we know that has to match, and to do so would skew our results
+	if currentSpring != '#' {
+		if currentLengthOfBrokenBlock == 0 {
+			// We never had a match, so check the next spring for matches
+			combos += set.FindCombinations(iCurrentSpring+1, iCurrentBrokenBlock, 0, cache)
+		} else if currentLengthOfBrokenBlock > 0 && iCurrentBrokenBlock < len(set.BrokenSpringBlocks) && set.BrokenSpringBlocks[iCurrentBrokenBlock] == currentLengthOfBrokenBlock {
+
+			// we thought we had a match with the current spring, but that turned out to be false.
+			combos += set.FindCombinations(iCurrentSpring+1, iCurrentBrokenBlock+1, 0, cache)
+		}
 	}
 
 	cache[key] = combos
@@ -99,12 +126,12 @@ func parseFile(fileName string) Sets {
 		line := scanner.Text()
 		tokens := strings.Split(line, " ")
 
-		pattern := Pattern{}
+		brokenSpringArray := []int{}
 		for _, token := range strings.Split(tokens[1], ",") {
 			number, _ := strconv.Atoi(token)
-			pattern = append(pattern, number)
+			brokenSpringArray = append(brokenSpringArray, number)
 		}
-		set := Set{pattern, Template(tokens[0])}
+		set := Set{brokenSpringArray, tokens[0]}
 		sets = append(sets, set)
 	}
 
