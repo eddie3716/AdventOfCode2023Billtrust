@@ -33,25 +33,6 @@ func (s Set) Fold() Set {
 	return newSet
 }
 
-func (set Set) CheckForTermination(iCurrentSpring, iCurrentBrokenBlock int, currentLengthOfBrokenBlock int) (bool, int) {
-	if iCurrentSpring == len(set.SpringArray) {
-		// we've reached the end of our spring array
-
-		if iCurrentBrokenBlock == len(set.BrokenSpringBlocks) && currentLengthOfBrokenBlock == 0 {
-			// we've check all broken spring blocks and don't have any in progress that we're checking, so all other blocks were matched
-			return true, 1
-		} else if iCurrentBrokenBlock == len(set.BrokenSpringBlocks)-1 && set.BrokenSpringBlocks[iCurrentBrokenBlock] == currentLengthOfBrokenBlock {
-			// we've been checking the last broken spring block and determined that it's a match
-			return true, 1
-		} else {
-			// we've reached the end of our spring array but we still have broken spring blocks to check, so we weren't able to match all blocks
-			return true, 0
-		}
-	}
-
-	return false, 0
-}
-
 func (set Set) FindCombos() int {
 	cache := make(map[string]int)
 	result := set.FindCombinations(0, 0, 0, cache)
