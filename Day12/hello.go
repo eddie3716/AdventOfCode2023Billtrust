@@ -40,7 +40,7 @@ func (set Set) FindCombos() int {
 }
 
 func (set Set) FindCombinations(iCurrentSpring, iCurrentBrokenBlock int, currentLengthOfBrokenBlock int, cache map[string]int) int {
-	//this will be a unique key across all combinations
+	//this will be a unique key across all combinations...this is the "state" of the current combination
 	key := fmt.Sprintf("%d_%d_%d", iCurrentBrokenBlock, iCurrentSpring, currentLengthOfBrokenBlock)
 
 	//fmt.Println("Key", key)
@@ -54,7 +54,7 @@ func (set Set) FindCombinations(iCurrentSpring, iCurrentBrokenBlock int, current
 		// we've reached the end of our spring array
 
 		if iCurrentBrokenBlock == len(set.BrokenSpringBlocks) && currentLengthOfBrokenBlock == 0 {
-			// we've check all broken spring blocks and don't have any in progress that we're checking, so all other blocks were matched
+			// we've check all broken spring blocks and don't have any in progress that we're checking a block now, so all other blocks were matched
 			return 1
 		} else if iCurrentBrokenBlock == len(set.BrokenSpringBlocks)-1 && set.BrokenSpringBlocks[iCurrentBrokenBlock] == currentLengthOfBrokenBlock {
 			// we've been checking the last broken spring block and determined that it's a match
@@ -74,7 +74,7 @@ func (set Set) FindCombinations(iCurrentSpring, iCurrentBrokenBlock int, current
 		combos += set.FindCombinations(iCurrentSpring+1, iCurrentBrokenBlock, currentLengthOfBrokenBlock+1, cache)
 	}
 
-	//need to check other branches...we don't branch on a '#' because we know that has to match, and to do so would skew our results
+	//need to check other branches...we don't branch on a '#' because we know that has to match and we need to keep checking for the match, so to branch on '#' do so would skew our results
 	if currentSpring != '#' {
 		if currentLengthOfBrokenBlock == 0 {
 			// We never had a match, so check the next spring for matches
