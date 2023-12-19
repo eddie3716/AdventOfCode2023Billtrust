@@ -4,14 +4,20 @@ import (
 	"bufio"
 	"container/heap"
 	"fmt"
+	"math"
 	"os"
+	"strconv"
+	"strings"
 )
 
+var heatMap [][]int = [][]int{}
+var directions = map[byte][]int{NORTH: toNorth, SOUTH: toSouth, WEST: toWest, EAST: toEast}
+
 const (
-	NORTH = iota*10 + 10
-	SOUTH
-	WEST
-	EAST
+	NORTH = byte('N')
+	SOUTH = byte('S')
+	WEST  = byte('W')
+	EAST  = byte('E')
 )
 
 var toNorth = []int{-1, 0}
@@ -23,63 +29,63 @@ type CityBlock struct {
 	iRow                    int
 	iCol                    int
 	totalHeat               int
-	totalSteps              int
-	direction               int
 	stepsInCurrentDirection int
-	previousCityBlock       *CityBlock
+	direction               byte
 }
 
-func (cb *CityBlock) NextCityBlock(mnemonicDirection int, direction []int, heatMap [][]rune) *CityBlock {
+func (cb *CityBlock) NextCityBlock(mnemonicDirection byte) *CityBlock {
+	var direction []int = directions[mnemonicDirection]
+
 	stepsInCurrentDirection := 0
 	if mnemonicDirection == cb.direction {
 		stepsInCurrentDirection = cb.stepsInCurrentDirection + 1
 	} else {
 		stepsInCurrentDirection = 1
 	}
-	return &CityBlock{iRow: cb.iRow + direction[0], iCol: cb.iCol + direction[1], totalHeat: cb.totalHeat + int(heatMap[cb.iRow+direction[0]][cb.iCol+direction[1]]-'0'), direction: mnemonicDirection, totalSteps: 1 + cb.totalSteps, stepsInCurrentDirection: stepsInCurrentDirection}
+	return &CityBlock{iRow: cb.iRow + direction[0], iCol: cb.iCol + direction[1], totalHeat: cb.totalHeat + heatMap[cb.iRow+direction[0]][cb.iCol+direction[1]], direction: mnemonicDirection, stepsInCurrentDirection: stepsInCurrentDirection}
 }
 
-func (cb *CityBlock) GetNextDirections(heatMap [][]rune) []*CityBlock {
+func (cb *CityBlock) GetNextDirections(heatMap [][]int) []*CityBlock {
 	directions := []*CityBlock{}
 	if cb.direction == NORTH {
 		if cb.stepsInCurrentDirection < 3 && cb.iRow > 0 {
-			directions = append(directions, cb.NextCityBlock(NORTH, toNorth, heatMap))
+			directions = append(directions, cb.NextCityBlock(NORTH))
 		}
 		if cb.iCol > 0 {
-			directions = append(directions, cb.NextCityBlock(WEST, toWest, heatMap))
+			directions = append(directions, cb.NextCityBlock(WEST))
 		}
 		if cb.iCol < len(heatMap[0])-1 {
-			directions = append(directions, cb.NextCityBlock(EAST, toEast, heatMap))
+			directions = append(directions, cb.NextCityBlock(EAST))
 		}
 	} else if cb.direction == SOUTH {
 		if cb.stepsInCurrentDirection < 3 && cb.iRow < len(heatMap)-1 {
-			directions = append(directions, cb.NextCityBlock(SOUTH, toSouth, heatMap))
+			directions = append(directions, cb.NextCityBlock(SOUTH))
 		}
 		if cb.iCol > 0 {
-			directions = append(directions, cb.NextCityBlock(WEST, toWest, heatMap))
+			directions = append(directions, cb.NextCityBlock(WEST))
 		}
 		if cb.iCol < len(heatMap[0])-1 {
-			directions = append(directions, cb.NextCityBlock(EAST, toEast, heatMap))
+			directions = append(directions, cb.NextCityBlock(EAST))
 		}
 	} else if cb.direction == WEST {
 		if cb.stepsInCurrentDirection < 3 && cb.iCol > 0 {
-			directions = append(directions, cb.NextCityBlock(WEST, toWest, heatMap))
+			directions = append(directions, cb.NextCityBlock(WEST))
 		}
 		if cb.iRow > 0 {
-			directions = append(directions, cb.NextCityBlock(NORTH, toNorth, heatMap))
+			directions = append(directions, cb.NextCityBlock(NORTH))
 		}
 		if cb.iRow < len(heatMap)-1 {
-			directions = append(directions, cb.NextCityBlock(SOUTH, toSouth, heatMap))
+			directions = append(directions, cb.NextCityBlock(SOUTH))
 		}
 	} else if cb.direction == EAST {
 		if cb.stepsInCurrentDirection < 3 && cb.iCol < len(heatMap[0])-1 {
-			directions = append(directions, cb.NextCityBlock(EAST, toEast, heatMap))
+			directions = append(directions, cb.NextCityBlock(EAST))
 		}
 		if cb.iRow > 0 {
-			directions = append(directions, cb.NextCityBlock(NORTH, toNorth, heatMap))
+			directions = append(directions, cb.NextCityBlock(NORTH))
 		}
 		if cb.iRow < len(heatMap)-1 {
-			directions = append(directions, cb.NextCityBlock(SOUTH, toSouth, heatMap))
+			directions = append(directions, cb.NextCityBlock(SOUTH))
 		}
 	}
 	return directions
@@ -106,15 +112,15 @@ func (pq *PriorityQueue) Pop() interface{} {
 }
 
 func main() {
-	heatMap := parseFile("testinput.txt")
-	//fmt.Println(heatMap)
+	parseFile("input.txt")
+	printHeatMap(heatMap)
 
-	part1(heatMap)
+	part1()
 
-	// part2(heatMap)
+	// part2()
 }
 
-func parseFile(fileName string) [][]rune {
+func parseFile(fileName string) {
 	file, err := os.Open(fileName)
 
 	if err != nil {
@@ -124,59 +130,81 @@ func parseFile(fileName string) [][]rune {
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	heatMap := [][]rune{}
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		heatMap = append(heatMap, []rune(line))
+		record := []int{}
+		for _, char := range line {
+			record = append(record, int(char)-'0')
+		}
+		heatMap = append(heatMap, record)
 	}
-
-	return heatMap
 }
 
-func printHeatMap(heatMap [][]rune) {
+func printHeatMap(heatMap [][]int) {
 	for _, line := range heatMap {
-		fmt.Println(string(line))
+		for _, char := range line {
+			fmt.Print(char)
+		}
+		fmt.Println()
 	}
 	fmt.Println()
 }
 
-func (cb *CityBlock) GetKey() string {
-	return fmt.Sprintf("%d,%d,%d", cb.iRow, cb.iCol, cb.direction)
+func (cb *CityBlock) String() string {
+	return fmt.Sprintf("(col:%d,row:%d,dir:%q,theat:%d)", cb.iRow, cb.iCol, cb.direction, cb.totalHeat)
 }
 
-func part1(heatMap [][]rune) {
+func (cb *CityBlock) GetKey() string {
+	return fmt.Sprintf("%d,%d,%d,%d", cb.iRow, cb.iCol, cb.direction, cb.stepsInCurrentDirection)
+}
 
-	answer := 0
-	visited := map[string]struct{}{}
+func Min(x, y int) int {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func part1() {
+
+	answer := math.MaxInt
+	visited := map[string]int{}
 	pq := make(PriorityQueue, 0)
 	heap.Init(&pq)
-	heap.Push(&pq, &CityBlock{iRow: 0, iCol: 0, direction: EAST, stepsInCurrentDirection: 0, totalHeat: int(heatMap[0][0]) - '0'})
+	heap.Push(&pq, &CityBlock{iRow: 0, iCol: 0, direction: EAST, stepsInCurrentDirection: 0, totalHeat: 0})
 
 	for len(pq) > 0 {
 		currentCityBlock := heap.Pop(&pq).(*CityBlock)
 		newDirections := currentCityBlock.GetNextDirections(heatMap)
 
-		if currentCityBlock.iRow == len(heatMap)-1 && currentCityBlock.iCol == len(heatMap[0])-1 {
-			answer = currentCityBlock.totalHeat
-			goto done
-		}
-
 		key := currentCityBlock.GetKey()
-		if _, didVisit := visited[key]; didVisit {
+		if visitedHeat, didVisit := visited[key]; didVisit && visitedHeat < currentCityBlock.totalHeat {
 			continue
 		}
-		visited[key] = struct{}{}
+
+		visited[key] = currentCityBlock.totalHeat
 
 		for _, newDirection := range newDirections {
 			heap.Push(&pq, newDirection)
 		}
 	}
-done:
+	//fmt.Println("Visited: ", visited)
+	for key, value := range visited {
+		tokens := strings.Split(key, ",")
+		row, _ := strconv.Atoi(tokens[0])
+		col, _ := strconv.Atoi(tokens[1])
+		if row == len(heatMap[0])-1 && col == len(heatMap)-1 {
+			answer = Min(answer, value)
+		}
+	}
+
+	fmt.Println()
+	printHeatMap(heatMap)
 	fmt.Println("Part 1: ", answer)
 }
 
-func part2(heatMap [][]rune) {
+func part2(heatMap [][]int) {
 
 	answer := 0
 
