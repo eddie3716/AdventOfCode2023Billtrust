@@ -18,6 +18,7 @@ type Digplan struct {
 	colors       []string
 	maxRows      int
 	maxCols      int
+	startingRow  int
 	grid         [][]rune
 }
 
@@ -34,6 +35,8 @@ func (digPlan *Digplan) generateGrid() {
 	deltaRows := 0
 	deltaCols := 0
 
+	deltaFromStart := 0
+	maxDeltaFromStart := 0
 	for _, instruction := range digPlan.instructions {
 		switch instruction.direction {
 		case "R":
@@ -42,8 +45,12 @@ func (digPlan *Digplan) generateGrid() {
 		case "L":
 			deltaCols -= instruction.steps
 		case "U":
+			deltaFromStart += instruction.steps
+			maxDeltaFromStart = max(maxDeltaFromStart, deltaFromStart)
 			deltaRows -= instruction.steps
 		case "D":
+			deltaFromStart -= instruction.steps
+			maxDeltaFromStart = max(maxDeltaFromStart, deltaFromStart)
 			deltaRows += instruction.steps
 			maxRows = max(maxRows, deltaRows)
 		}
@@ -57,8 +64,9 @@ func (digPlan *Digplan) generateGrid() {
 		panic("negative cols")
 	}
 
-	digPlan.maxRows = maxRows
-	digPlan.maxCols = maxCols
+	digPlan.maxRows = maxRows + 1
+	digPlan.maxCols = maxCols + 1
+	digPlan.startingRow = maxDeltaFromStart
 
 	digPlan.grid = make([][]rune, digPlan.maxRows)
 	for i := range digPlan.grid {
@@ -72,11 +80,22 @@ func (digPlan *Digplan) generateGrid() {
 var digPlan Digplan = Digplan{colors: []string{}, instructions: []Instructions{}}
 
 func main() {
-	parseFile("testinput.txt")
+	parseFile("input.txt")
 
 	fmt.Println("answer part 1:", findMinHeat())
 
-	fmt.Println("answer part 2:", findMinHeat())
+	//fmt.Println("answer part 2:", findMinHeat())
+}
+
+func (digPlan *Digplan) String() string {
+	var sb strings.Builder
+	for _, row := range digPlan.grid {
+		for _, col := range row {
+			sb.WriteRune(col)
+		}
+		sb.WriteString("\n")
+	}
+	return sb.String()
 }
 
 func parseFile(fileName string) {
@@ -104,9 +123,62 @@ func parseFile(fileName string) {
 }
 
 func findMinHeat() int {
-
+	fmt.Println(digPlan.String())
 	answer := 0
 
-	fmt.Println(digPlan)
+	currentRow := digPlan.startingRow
+	currentCol := 0
+	digPlan.grid[currentRow][currentCol] = '#'
+	for _, instruction := range digPlan.instructions {
+		switch instruction.direction {
+		case "R":
+			for i := 0; i < instruction.steps; i++ {
+				currentCol++
+				digPlan.grid[currentRow][currentCol] = '#'
+				answer++
+			}
+		case "L":
+			for i := 0; i < instruction.steps; i++ {
+				currentCol--
+				digPlan.grid[currentRow][currentCol] = '#'
+				answer++
+			}
+		case "U":
+			for i := 0; i < instruction.steps; i++ {
+				currentRow--
+				digPlan.grid[currentRow][currentCol] = '#'
+				answer++
+			}
+		case "D":
+			for i := 0; i < instruction.steps; i++ {
+				currentRow++
+				digPlan.grid[currentRow][currentCol] = '#'
+				answer++
+			}
+		}
+	}
+	fmt.Println(digPlan.String())
+	for i := 0; i < digPlan.maxRows; i++ {
+		previousChar := '?'
+		inside := false
+		for j := 0; j < digPlan.maxCols; j++ {
+
+			currentChar := digPlan.grid[i][j]
+
+			if previousChar == '#' && currentChar == '.' {
+				inside = !inside
+			}
+
+			previousChar = currentChar
+			if inside && currentChar == '.' {
+				digPlan.grid[i][j] = '#'
+				answer++
+			}
+		}
+	}
+
+	fmt.Println(digPlan.String())
+
+	//fmt.Println(digPlan)
 	return answer
 }
