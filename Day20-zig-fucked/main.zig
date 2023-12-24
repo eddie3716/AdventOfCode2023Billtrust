@@ -7,14 +7,13 @@ const ArrayList = std.ArrayList;
 var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const BROADCASTER = "broadcaster";
 
-pub fn parseFile(fileName: []const u8) !StateMachine {
+pub fn parseFile(fileName: []const u8) !*StateMachine {
     var iterator = try buf.iterLines(fileName);
     defer iterator.deinit();
-
-    var stateMachine = StateMachine{
-        .states = std.StringHashMap(States).init(gpa.allocator()),
-        .workflows = std.StringHashMap(Workflow).init(gpa.allocator()),
-    };
+    var stateMachinePtr: *StateMachine = try gpa.allocator().create(StateMachine);
+    var stateMachine = stateMachinePtr.*;
+    stateMachine.states = std.StringHashMap(States).init(gpa.allocator());
+    stateMachine.workflows = std.StringHashMap(Workflow).init(gpa.allocator());
 
     while (try iterator.next()) |line| {
         var tokenizer = std.mem.tokenizeAny(u8, line, "->, ");
@@ -43,7 +42,7 @@ pub fn parseFile(fileName: []const u8) !StateMachine {
         std.debug.print("{s}\n", .{line});
     }
 
-    return stateMachine;
+    return stateMachinePtr;
 }
 
 const Unknown = 0;
@@ -80,8 +79,9 @@ pub fn main() !void {
     std.debug.print("Part 2: {any}\n", .{part2()});
 }
 
-pub fn part1(statemachine: StateMachine) !i32 {
+pub fn part1(stateMachinePtr: *StateMachine) !i32 {
     var answer: i32 = 0;
+    var statemachine = stateMachinePtr.*;
 
     var queue = q.Queue(Workflow).init(gpa.allocator());
 
@@ -94,13 +94,14 @@ pub fn part1(statemachine: StateMachine) !i32 {
         switch (workflow.workflowType) {
             WorkflowTypes.Button => {
                 for (workflow.nextWorkflows.items) |nextWorkflow| {
-                    var state = statemachine.states.get(nextWorkflow).?;
+                    const next = nextWorkflow;
+                    var state = statemachine.states.get(next).?;
                     if (state == States.High) {
-                        try statemachine.states.put(nextWorkflow, States.Low);
+                        try statemachine.states.put(next, States.Low);
                     } else {
-                        try statemachine.states.put(nextWorkflow, States.High);
+                        try statemachine.states.put(next, States.High);
                     }
-                    try queue.enqueue(statemachine.workflows.get(nextWorkflow).?);
+                    try queue.enqueue(statemachine.workflows.get(next).?);
                     answer += 1;
                 }
             },
