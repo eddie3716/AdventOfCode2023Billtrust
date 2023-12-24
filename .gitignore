@@ -2,3 +2,8 @@
 **/obj
 **/.vs
 **/target
+**/zig-cache
+**/zig-out
+**/*.exe
+**/*.obj
+**/*.pdb
