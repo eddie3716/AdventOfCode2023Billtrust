@@ -8,6 +8,6 @@ fn main() {
     let debug_dir = Path::new(&out_dir).parent().unwrap().parent().unwrap().parent().unwrap();
 
     // Copy the file to the output directory.
-    fs::copy("src/input.txt", debug_dir.join("input.txt")).unwrap();
-    fs::copy("src/testinput.txt", debug_dir.join("testinput.txt")).unwrap();
+    fs::copy("input.txt", debug_dir.join("input.txt")).unwrap();
+    fs::copy("testinput.txt", debug_dir.join("testinput.txt")).unwrap();
 }
