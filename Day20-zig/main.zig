@@ -1,144 +1,204 @@
 const std = @import("std");
-const buf = @import("../buf-iter.zig");
 const q = @import("../queue.zig");
-const io = std.io;
-const fs = std.fs;
-const ArrayList = std.ArrayList;
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const BROADCASTER = "broadcaster";
+const panic = std.debug.panic;
+const tokenizer = std.mem.tokenizeAny(u8, line, "->, ");
 
-pub fn parseFile(fileName: []const u8) !*StateMachine {
-    var iterator = try buf.iterLines(fileName);
-    defer iterator.deinit();
-    var stateMachinePtr: *StateMachine = try gpa.allocator().create(StateMachine);
-    var stateMachine = stateMachinePtr.*;
-    stateMachine.states = std.StringHashMap(States).init(gpa.allocator());
-    stateMachine.workflows = std.StringHashMap(Workflow).init(gpa.allocator());
+const Signal = enum {
+    High,
+    Low,
+};
 
-    while (try iterator.next()) |line| {
-        var tokenizer = std.mem.tokenizeAny(u8, line, "->, ");
+const Kind = enum {
+    Button,
+    FlipFlopper,
+    Inverter,
+};
 
-        var workflow = try initWorkflow(gpa.allocator());
-
-        var firstToken = tokenizer.next().?;
-
-        workflow.workflowType = if (std.mem.eql(u8, firstToken, BROADCASTER)) WorkflowTypes.Button else if (firstToken[0] == '%') WorkflowTypes.FlipFlopper else WorkflowTypes.Inverter;
-        while (tokenizer.next()) |token| {
-            try workflow.nextWorkflows.append(token);
-        }
-
-        if (std.mem.eql(u8, firstToken, BROADCASTER)) {
-            //std.debug.print("{s} to {s}\n", .{ firstToken, workflow.nextWorkflows.items });
-            workflow.name = firstToken;
-            try stateMachine.states.put(firstToken, States.Low);
-            try stateMachine.workflows.put(firstToken, workflow);
-        } else {
-            //std.debug.print("Setting {s} to low\n", .{firstToken[1..]});
-            workflow.name = firstToken[1..];
-            try stateMachine.states.put(firstToken[1..], States.Low);
-            try stateMachine.workflows.put(firstToken[1..], workflow);
-        }
-
-        std.debug.print("{s}\n", .{line});
-    }
-
-    return stateMachinePtr;
-}
-
-const Unknown = 0;
-const Button = 1;
-const FlipFlopper = 2;
-const Inverter = 3;
-
-const States = enum { High, Low };
-const WorkflowTypes = enum { Unknown, Button, FlipFlopper, Inverter };
+const QueueItem = struct {
+    signal: Signal,
+    from_name: *const std.string.String,
+    to_workflow: *const Workflow,
+};
 
 const Workflow = struct {
-    name: []const u8,
-    workflowType: WorkflowTypes,
-    nextWorkflows: ArrayList([]const u8),
+    name: std.string.String,
+    kind: Kind,
+    senders: []const std.string.String,
+    next_workflows: []const std.string.String,
 };
 
-const StateMachine = struct {
-    states: std.StringHashMap(States),
-    workflows: std.StringHashMap(Workflow),
-};
+fn parseFile(file_name: []const u8) !std.HashMap(Workflow) {
+    var workflows = std.HashMap(Workflow).init(std.alloc, 0);
+    const contents = try std.io.readFile(file_name);
+    var tokens = []const std.string.String{};
+    var iter = std.mem.splitToIterator(contents, '\n');
+    for (iter.next()) |line| {
+        line = std.ascii.trimSuffix(line, '\n');
+        tokens = std.string.split(line, |c| c == ' ' or c == ',');
+        tokens = tokens.filter(s != "->" and s != "");
+        const raw_name = tokens[0];
+        const name = std.string.trimPrefix(raw_name, '%') | std.string.trimPrefix(raw_name, '&');
+        const next_workflows = tokens[1..];
 
-pub fn initWorkflow(allocator: std.mem.Allocator) !Workflow {
-    return Workflow{
-        .name = undefined,
-        .workflowType = WorkflowTypes.Unknown,
-        .nextWorkflows = ArrayList([]const u8).init(allocator),
-    };
-}
+        const kind = switch (raw_name) {
+            "broadcaster" => Kind.Button,
+            "%" => Kind.FlipFlopper,
+            "&" => Kind.Inverter,
+            else => panic("Unknown kind"),
+        };
 
-pub fn main() !void {
-    var stateMachine = try parseFile("./testinput.txt");
-
-    std.debug.print("Part 1: {any}\n", .{part1(stateMachine)});
-    std.debug.print("Part 2: {any}\n", .{part2()});
-}
-
-pub fn part1(stateMachinePtr: *StateMachine) !i32 {
-    var answer: i32 = 0;
-    var statemachine = stateMachinePtr.*;
-
-    var queue = q.Queue(Workflow).init(gpa.allocator());
-
-    try queue.enqueue(statemachine.workflows.get(BROADCASTER).?);
-
-    var workflowPtr = queue.dequeue();
-
-    while (workflowPtr != null) {
-        var workflow = workflowPtr.?;
-        switch (workflow.workflowType) {
-            WorkflowTypes.Button => {
-                for (workflow.nextWorkflows.items) |nextWorkflow| {
-                    const next = nextWorkflow;
-                    var state = statemachine.states.get(next).?;
-                    if (state == States.High) {
-                        try statemachine.states.put(next, States.Low);
-                    } else {
-                        try statemachine.states.put(next, States.High);
-                    }
-                    try queue.enqueue(statemachine.workflows.get(next).?);
-                    answer += 1;
-                }
-            },
-            WorkflowTypes.FlipFlopper => {
-                for (workflow.nextWorkflows.items) |nextWorkflow| {
-                    var state = statemachine.states.get(nextWorkflow).?;
-                    if (state == States.High) {
-                        try statemachine.states.put(nextWorkflow, States.Low);
-                    } else {
-                        try statemachine.states.put(nextWorkflow, States.High);
-                    }
-                    try queue.enqueue(statemachine.workflows.get(nextWorkflow).?);
-                    answer += 1;
-                }
-            },
-            WorkflowTypes.Inverter => {
-                for (workflow.nextWorkflows.items) |nextWorkflow| {
-                    var state = statemachine.states.get(nextWorkflow).?;
-                    if (state == States.High) {
-                        try statemachine.states.put(nextWorkflow, States.Low);
-                    } else {
-                        try statemachine.states.put(nextWorkflow, States.High);
-                    }
-                    try queue.enqueue(statemachine.workflows.get(nextWorkflow).?);
-                    answer += 1;
-                }
-            },
-            else => unreachable,
+        const workflow = Workflow{
+            .name = name,
+            .kind = kind,
+            .senders = []const std.string.String{},
+            .next_workflows = next_workflows,
+        };
+        const insert = workflows.put(name, workflow);
+        if (insert == null) {
+            panic("Failed to insert workflow into HashMap");
         }
-        workflowPtr = queue.dequeue();
     }
 
-    return answer;
+    for (workflows) |workflow| {
+        const name = workflow.name;
+        if (workflow.kind == Kind.Inverter) {
+            for (workflows) |other_workflow| {
+                const other_workflow_name = other_workflow.name;
+                if (std.array.contains(other_workflow.next_workflows, name)) {
+                    try workflow.senders.append(other_name);
+                }
+            }
+        }
+    }
+
+    return workflows;
 }
 
-pub fn part2() !i32 {
-    var answer: i32 = 0;
+fn part1(workflows: *const std.HashMap(Workflow)) !i32 {
+    var lowPulses: i32 = 0;
+    var highPulses: i32 = 0;
+    var queue = q.Queue(QueueItem).init(std.heap.page_allocator);
 
-    return answer;
+    const onOrOff = std.HashMap(bool).init(std.alloc, 0);
+    const inverterSignals = std.HashMap(Signal).init(std.alloc, 0);
+
+    for (workflows.entries) |workflow| {
+        if (workflow.kind == Kind.FlipFlopper) {
+            try onOrOff.put(workflow.name, false);
+        }
+    }
+
+    const button = "button";
+
+    for (1..1000) |i| {
+        lowPulses += 1;
+
+        var visited = std.HashMap(bool).init(std.alloc, 0);
+
+        const broadcaster = try workflows.get("broadcaster");
+        if (broadcaster != null) {
+            const queueItem = QueueItem{
+                .signal = Signal.Low,
+                .from_name = button,
+                .to_workflow = broadcaster,
+            };
+            try queue.enqueue(queueItem);
+        } else {
+            panic("No broadcaster found");
+        }
+
+        while (queue.dequeue()) |queueItem| {
+            const toWorkflow = queueItem.to_workflow;
+            const fromName = queueItem.from_name;
+            const currentSignal = queueItem.signal;
+            const currentKind = &toWorkflow.kind;
+            const currentWorkflowName = toWorkflow.name;
+            var newSignal: Signal;
+
+            if (currentKind == Kind.FlipFlopper) {
+                const entry = onOrOff.mutate(currentWorkflowName);
+                if (currentSignal == Signal.Low) {
+                    entry.* = !entry.*;
+                }
+                if (entry.*) {
+                    newSignal = Signal.High;
+                } else {
+                    newSignal = Signal.Low;
+                }
+            } else if (currentKind == Kind.Inverter) {
+                const inverterKey = currentWorkflowName ++ "_" ++ fromName;
+                const inverterSignal = inverterSignals.get(inverterKey);
+                if (inverterSignal == Signal.Low) {
+                    newSignal = Signal.Low;
+                } else {
+                    newSignal = Signal.High;
+                }
+
+                if (currentSignal == Signal.Low) {
+                    inverterSignals.put(inverterKey, Signal.Low);
+                } else {
+                    inverterSignals.put(inverterKey, Signal.High);
+                }
+            } else if (currentWorkflowName == "broadcaster") {
+                newSignal = Signal.Low;
+            } else {
+                if (currentSignal == Signal.Low) {
+                    newSignal = Signal.Low;
+                } else {
+                    newSignal = Signal.High;
+                }
+            }
+
+            for (toWorkflow.next_workflows) |nextWorkflowName| {
+                const newSignalStr = switch (newSignal) {
+                    Signal.Low => "low",
+                    Signal.High => "high",
+                };
+
+                const visitedKey = currentWorkflowName ++ "_" ++ nextWorkflowName ++ "_" ++ newSignalStr;
+                if (visited.get(visitedKey)) {
+                    continue;
+                } else {
+                    visited.put(visitedKey, true);
+                }
+
+                if (newSignal == Signal.Low) {
+                    lowPulses += 1;
+                } else {
+                    highPulses += 1;
+                }
+
+                const nextWorkflow = workflows.get(nextWorkflowName);
+                if (nextWorkflow != null) {
+                    const newQueueItem = QueueItem{
+                        .signal = newSignal,
+                        .from_name = &toWorkflow.name,
+                        .to_workflow = nextWorkflow,
+                    };
+                    try queue.append(newQueueItem);
+                }
+            }
+        }
+    }
+
+    std.debug.print("low_pulses: {}\n", .{lowPulses});
+    std.debug.print("high_pulses: {}\n", .{highPulses});
+    return lowPulses * highPulses;
+}
+
+fn part2(workflows: *const std.HashMap(Workflow)) !i32 {
+    _ = workflows;
+    var sum: i32 = 0;
+    // Implement part 2 logic here if needed.
+    return sum;
+}
+
+pub fn main() void {
+    const file_name = "testinput.txt";
+    const workflows = try parseFile(file_name);
+    const result1 = try part1(&workflows);
+    const result2 = try part2(&workflows);
+
+    std.debug.print("part1: {}\n", .{result1});
+    std.debug.print("part2: {}\n", .{result2});
 }
