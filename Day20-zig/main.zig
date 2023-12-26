@@ -1,7 +1,7 @@
 const std = @import("std");
 const q = @import("../queue.zig");
+const b = @import("../buf-iter.zig");
 const panic = std.debug.panic;
-const tokenizer = std.mem.tokenizeAny(u8, line, "->, ");
 
 const Signal = enum {
     High,
@@ -21,38 +21,38 @@ const QueueItem = struct {
 };
 
 const Workflow = struct {
-    name: std.string.String,
+    name: []const u8,
     kind: Kind,
-    senders: []const std.string.String,
-    next_workflows: []const std.string.String,
+    senders: std.ArrayList([]const u8),
+    next_workflows: std.ArrayList([]const u8),
 };
 
-fn parseFile(file_name: []const u8) !std.HashMap(Workflow) {
-    var workflows = std.HashMap(Workflow).init(std.alloc, 0);
-    const contents = try std.io.readFile(file_name);
-    var tokens = []const std.string.String{};
-    var iter = std.mem.splitToIterator(contents, '\n');
-    for (iter.next()) |line| {
-        line = std.ascii.trimSuffix(line, '\n');
-        tokens = std.string.split(line, |c| c == ' ' or c == ',');
-        tokens = tokens.filter(s != "->" and s != "");
-        const raw_name = tokens[0];
-        const name = std.string.trimPrefix(raw_name, '%') | std.string.trimPrefix(raw_name, '&');
-        const next_workflows = tokens[1..];
+fn parseFile(file_name: []const u8) !*std.StringHashMap(Workflow) {
+    var iterator = try b.iterLines(file_name);
+    defer iterator.deinit();
+    var workflows = &std.StringHashMap(Workflow).init(std.heap.page_allocator);
+    while (try iterator.next()) |line| {
+        var tokenizer = std.mem.tokenizeAny(u8, line, "->, ");
 
-        const kind = switch (raw_name) {
-            "broadcaster" => Kind.Button,
-            "%" => Kind.FlipFlopper,
-            "&" => Kind.Inverter,
-            else => panic("Unknown kind"),
+        const raw_name = tokenizer.next().?;
+        const name = if (raw_name[0] == '%' or raw_name[0] == '&') raw_name[1..] else raw_name;
+        const kind = switch (raw_name[0]) {
+            '%' => Kind.FlipFlopper,
+            '&' => Kind.Inverter,
+            else => Kind.Button,
         };
 
         const workflow = Workflow{
             .name = name,
             .kind = kind,
-            .senders = []const std.string.String{},
-            .next_workflows = next_workflows,
+            .senders = std.ArrayList([]const u8).init(std.heap.page_allocator),
+            .next_workflows = std.ArrayList([]const u8).init(std.heap.page_allocator),
         };
+
+        while (try tokenizer.next()) |token| {
+            workflow.next_workflows.append(token);
+        }
+
         const insert = workflows.put(name, workflow);
         if (insert == null) {
             panic("Failed to insert workflow into HashMap");
@@ -65,7 +65,7 @@ fn parseFile(file_name: []const u8) !std.HashMap(Workflow) {
             for (workflows) |other_workflow| {
                 const other_workflow_name = other_workflow.name;
                 if (std.array.contains(other_workflow.next_workflows, name)) {
-                    try workflow.senders.append(other_name);
+                    try workflow.senders.append(other_workflow_name);
                 }
             }
         }
@@ -74,13 +74,13 @@ fn parseFile(file_name: []const u8) !std.HashMap(Workflow) {
     return workflows;
 }
 
-fn part1(workflows: *const std.HashMap(Workflow)) !i32 {
+fn part1(workflows: *const std.StringHashMap(Workflow)) !i32 {
     var lowPulses: i32 = 0;
     var highPulses: i32 = 0;
     var queue = q.Queue(QueueItem).init(std.heap.page_allocator);
 
-    const onOrOff = std.HashMap(bool).init(std.alloc, 0);
-    const inverterSignals = std.HashMap(Signal).init(std.alloc, 0);
+    const onOrOff = std.StringHashMap(bool).init(std.heap.page_allocator);
+    const inverterSignals = std.StringHashMap(Signal).init(std.heap.page_allocator);
 
     for (workflows.entries) |workflow| {
         if (workflow.kind == Kind.FlipFlopper) {
@@ -91,9 +91,10 @@ fn part1(workflows: *const std.HashMap(Workflow)) !i32 {
     const button = "button";
 
     for (1..1000) |i| {
+        _ = i;
         lowPulses += 1;
 
-        var visited = std.HashMap(bool).init(std.alloc, 0);
+        var visited = std.StringHashMap(bool).init(std.heap.page_allocator);
 
         const broadcaster = try workflows.get("broadcaster");
         if (broadcaster != null) {
@@ -113,7 +114,7 @@ fn part1(workflows: *const std.HashMap(Workflow)) !i32 {
             const currentSignal = queueItem.signal;
             const currentKind = &toWorkflow.kind;
             const currentWorkflowName = toWorkflow.name;
-            var newSignal: Signal;
+            var newSignal: Signal = undefined;
 
             if (currentKind == Kind.FlipFlopper) {
                 const entry = onOrOff.mutate(currentWorkflowName);
@@ -139,7 +140,7 @@ fn part1(workflows: *const std.HashMap(Workflow)) !i32 {
                 } else {
                     inverterSignals.put(inverterKey, Signal.High);
                 }
-            } else if (currentWorkflowName == "broadcaster") {
+            } else if (std.mem.eql(u8, currentWorkflowName, "broadcaster")) {
                 newSignal = Signal.Low;
             } else {
                 if (currentSignal == Signal.Low) {
