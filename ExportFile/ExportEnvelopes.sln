@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.7.34302.85
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExportFile", "ExportFile.csproj", "{9C4B4117-D680-4467-8694-668C4C85CA29}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ExportEnvelopes", "ExportEnvelopes.csproj", "{9C4B4117-D680-4467-8694-668C4C85CA29}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
